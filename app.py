@@ -75,7 +75,16 @@ if uploaded_file is not None:
         log_container = st.empty()
 
         try:
-            with st.spinner('Đang xử lý PDF... Vui lòng xem Log để biết chi tiết tiến độ.'):
+            # Progress bar setup
+            progress_bar = st.progress(0, text="Đang khởi tạo quá trình dịch...")
+            total_pages = st.session_state.settings['max_pages']
+
+            def update_progress(current_page: int):
+                # Ensure progress doesn't exceed 100%
+                percent_complete = min(1.0, current_page / total_pages)
+                progress_bar.progress(percent_complete, text=f"Đang xử lý PDF... Hoàn thành {current_page}/{total_pages} trang.")
+
+            with st.spinner('Đang chạy nền AI Agent... Vui lòng xem Log để biết chi tiết.'):
                 if st.session_state.settings["mock_mode"]:
                     st.session_state.logs += "[INFO] Đang chạy chế độ Giả lập...\n"
                     # To capture stdout from mock run
@@ -109,8 +118,15 @@ if uploaded_file is not None:
 
                     f = io.StringIO()
                     with redirect_stdout(f):
-                        agent.run(initial_instruction=instruction, max_iterations=st.session_state.settings['max_pages']*2)
+                        agent.run(
+                            initial_instruction=instruction,
+                            max_iterations=st.session_state.settings['max_pages']*2,
+                            progress_callback=update_progress
+                        )
                     st.session_state.logs += f.getvalue()
+
+                    # Ensure progress bar hits 100% at the end
+                    progress_bar.progress(1.0, text="Hoàn tất việc đọc file. Đang đóng gói Epub...")
 
                     # Find the most recently generated epub in the output directory
                     output_dir = "output"

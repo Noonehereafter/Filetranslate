@@ -136,7 +136,7 @@ LƯU Ý QUAN TRỌNG:
             "finish_epub_build": finish_epub_build
         }
 
-    def run(self, initial_instruction: str, max_iterations: int = 50):
+    def run(self, initial_instruction: str, max_iterations: int = 50, progress_callback=None):
         messages = [
             {"role": "system", "content": self.system_prompt},
             {"role": "user", "content": initial_instruction}
@@ -189,6 +189,13 @@ LƯU Ý QUAN TRỌNG:
                             if function_name == "get_page_images":
                                 res_dict = json.loads(function_response)
                                 if "pages" in res_dict:
+
+                                    # Report progress if callback is provided
+                                    if progress_callback:
+                                        # The last page of the batch
+                                        max_page_in_batch = max([p["page_number"] for p in res_dict["pages"]])
+                                        progress_callback(max_page_in_batch)
+
                                     # Create a specialized message for vision
                                     content_list = [{"type": "text", "text": "Đây là hình ảnh của các trang PDF bạn vừa yêu cầu:"}]
                                     for p in res_dict["pages"]:
