@@ -12,11 +12,12 @@ Dựa trên quá trình nghiên cứu và tham khảo các giải pháp hiện t
    3. Yêu cầu AI: *"Hãy đọc phần text thô này, kết hợp nhìn vào tọa độ (x,y) trên bức ảnh đính kèm để cấu trúc lại bảng bị vỡ"*.
 - **Kết quả:** Giảm 90% lượng token Vision, tăng 99% độ chính xác cho Bảng/Toán học (Latex) so với việc chỉ ném ảnh cho LLM tự đoán.
 
-### 1.1 Giải pháp Thay thế cho Máy tính Cấu hình Yếu (No GPU / Low RAM)
-Trường hợp chạy `marker` bằng PyTorch ở local quá nặng cho thiết bị cá nhân, ROADMAP đề xuất 3 hướng tiếp cận thay thế (Cloud-dependent):
-1. **Sử dụng Datalab Hosted API / LlamaParse API:** Thay vì chạy Local, gửi PDF lên Cloud Parser API để lấy lại cấu trúc JSON. Tốn thêm phí API Parser nhưng giảm tải hoàn toàn cho máy cá nhân.
-2. **Gửi File PDF trực tiếp (Native PDF Upload):** Thay vì code python phải tự cắt trang thành ảnh và encode Base64, chúng ta có thể sử dụng tính năng **File API của Gemini 1.5** hoặc OpenAI. Upload thẳng file PDF nguyên bản. LLM sẽ tự động đọc cả text chìm và nhìn cả ảnh nhờ kiến trúc Native Multimodal. Cách này rẻ và cực nhẹ cho máy tính cá nhân.
-3. **Lightweight Heuristic Parsing:** Dùng hàm `get_text()` của chính `PyMuPDF` (thư viện cực nhẹ đang dùng) để lấy text chay. Agent sẽ tự đánh giá: nếu text đọc ra toàn ký tự lạ (lỗi font) hoặc thiếu dữ liệu, Agent mới quyết định gọi Tool cắt ảnh để dùng Vision.
+### 1.1 Giải pháp Thay thế cho Máy tính Cấu hình Yếu: Distributed Architecture với Google Colab & MCP
+Thay vì tải toàn bộ file PDF lên LLM (dẫn đến tỷ lệ ảo giác/hallucination cao, khó kiểm soát chất lượng ở các trang phức tạp), giải pháp tối ưu và tiết kiệm nhất là chia tách hệ thống thông qua giao thức **MCP (Model Context Protocol)** kết hợp với **Google Colab Free GPU**:
+
+- **MCP Server (Chạy trên Google Colab):** Cài đặt môi trường nặng (PyTorch, `marker-pdf` V2) trên Colab để tận dụng GPU T4 miễn phí. Expose các hàm (tools) như `extract_page_json`, `get_bounding_boxes`, `render_math` thông qua chuẩn MCP và đường hầm (Ngrok/Cloudflare tunnel).
+- **MCP Client (Chạy trên máy tính Local cá nhân):** UI Streamlit và Agent sẽ chạy cực nhẹ trên máy cá nhân. AI Agent sẽ đóng vai trò nhạc trưởng: *"Tôi cần đọc trang 15, hãy gọi MCP Server trên Colab bóc text và bounding box cho tôi"*.
+- **LLM Context Control:** Nhờ MCP, Agent lấy được context chính xác (tọa độ, text đã được OCR bằng model chuyên dụng của Colab) và chỉ gửi cho Cloud LLM những cụm dữ liệu nhỏ, đã được phân tách rõ ràng. Khắc phục triệt để lỗi ảo giác và vỡ layout, đồng thời giải phóng hoàn toàn gánh nặng phần cứng cho máy cá nhân mà chi phí phần cứng = 0.
 
 ## 2. Quản lý Chi phí và Tốc độ (Cost Tracking & Concurrency)
 **Vấn đề hiện tại:** Xử lý tuần tự và không có giới hạn chi phí có thể dẫn đến việc tiêu tốn rất nhiều API Credit.
