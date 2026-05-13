@@ -3,9 +3,7 @@ import json
 from src.tools.pdf_tools import get_pdf_metadata, get_page_images
 from src.tools.epub_tools import init_epub, append_chapter_to_epub, finish_epub_build
 
-def run_mock_agent():
-    pdf_path = "Compensation - Gerhart, Barry;Newman, Jerry;Mi.pdf"
-
+def run_mock_agent(pdf_path: str = "Compensation - Gerhart, Barry;Newman, Jerry;Mi.pdf"):
     print("--- [MOCK AI] Bắt đầu quá trình ---")
 
     # BƯỚC 1: Lấy metadata
@@ -21,9 +19,23 @@ def run_mock_agent():
     images_dir = init_res.get("images_dir")
     print(f"Khởi tạo workspace tại: {workspace_dir}")
 
-    # BƯỚC 3: Giả lập quá trình đọc trang 75 và 76 (có chứa ảnh và bảng)
-    start_page = 75
-    end_page = 76
+    import fitz
+    try:
+        doc = fitz.open(pdf_path)
+        total_pages = len(doc)
+        doc.close()
+    except Exception as e:
+        print(f"Lỗi khi đọc file PDF: {e}")
+        return
+
+    # BƯỚC 3: Giả lập quá trình đọc
+    # Nếu file PDF có đủ trang thì đọc trang 75-76 (chứa bảng/ảnh mẫu). Nếu file ngắn hơn, đọc 2 trang cuối hoặc trang có sẵn.
+    if total_pages >= 77:
+        start_page = 75
+        end_page = 76
+    else:
+        start_page = 0
+        end_page = min(1, total_pages - 1)
 
     # 3a. Gọi hàm lấy hình ảnh
     print(f"\n[MOCK AI] Đang gọi get_page_images từ trang {start_page} đến {end_page}...")
