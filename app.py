@@ -74,74 +74,70 @@ if uploaded_file is not None:
         # We use an expander or text area to show logs
         log_container = st.empty()
 
-        # A simple string stream to capture prints
-        class StreamToUI(io.StringIO):
-            def write(self, s):
-                super().write(s)
-                st.session_state.logs += s
-                # Need to update UI dynamically but Streamlit reruns make it tricky inside a loop.
-                # We'll just update it at key points or let it accumulate.
-
         try:
-            if st.session_state.settings["mock_mode"]:
-                st.session_state.logs += "[INFO] Đang chạy chế độ Giả lập...\n"
-                # To capture stdout from mock run
-                f = io.StringIO()
-                with redirect_stdout(f):
-                    run_mock_agent(temp_pdf_path)
-                st.session_state.logs += f.getvalue()
-                # Mock run uses a fixed title inside init_epub for safety
-                st.session_state.result_epub = "output/Compensation_Test_Hybrid_Pipeline/Compensation_Test_Hybrid_Pipeline.epub"
-            else:
-                if not st.session_state.settings["api_key"]:
-                    st.error("Vui lòng nhập API Key trong phần Cấu hình!")
-                    st.session_state.is_running = False
-                    st.stop()
-
-                st.session_state.logs += "[INFO] Khởi động AI Agent...\n"
-                agent = PDFAgent(
-                    api_key=st.session_state.settings["api_key"],
-                    base_url=st.session_state.settings["base_url"],
-                    model_name=st.session_state.settings["model_name"]
-                )
-
-                instruction = f"""
-                Hãy xử lý file PDF sau: {temp_pdf_path}.
-                Tên file gốc: {uploaded_file.name}
-                1. Đọc metadata và khởi tạo Epub.
-                2. Đọc và dịch {st.session_state.settings['max_pages']} trang đầu tiên. Phân theo batch {st.session_state.settings['batch_size']} trang/lần.
-                3. Xử lý semantic parsing cho bảng biểu, trích xuất ảnh thật và nhúng bằng markdown.
-                4. Đóng gói epub khi hoàn tất.
-                """
-
-                f = io.StringIO()
-                with redirect_stdout(f):
-                    agent.run(initial_instruction=instruction, max_iterations=st.session_state.settings['max_pages']*2)
-                st.session_state.logs += f.getvalue()
-
-                # Find the most recently generated epub in the output directory
-                output_dir = "output"
-                found_epub = None
-                if os.path.exists(output_dir):
-                    # Sort directories by modification time to get the latest workspace
-                    dirs = [os.path.join(output_dir, d) for d in os.listdir(output_dir) if os.path.isdir(os.path.join(output_dir, d))]
-                    if dirs:
-                        latest_dir = max(dirs, key=os.path.getmtime)
-                        # Find the epub file inside the latest workspace
-                        epub_files = [f for f in os.listdir(latest_dir) if f.endswith(".epub")]
-                        if epub_files:
-                            found_epub = os.path.join(latest_dir, epub_files[0])
-
-                if found_epub:
-                    st.session_state.result_epub = found_epub
+            with st.spinner('Đang xử lý PDF... Vui lòng xem Log để biết chi tiết tiến độ.'):
+                if st.session_state.settings["mock_mode"]:
+                    st.session_state.logs += "[INFO] Đang chạy chế độ Giả lập...\n"
+                    # To capture stdout from mock run
+                    f = io.StringIO()
+                    with redirect_stdout(f):
+                        run_mock_agent(temp_pdf_path)
+                    st.session_state.logs += f.getvalue()
+                    # Mock run uses a fixed title inside init_epub for safety
+                    st.session_state.result_epub = "output/Compensation_Test_Hybrid_Pipeline/Compensation_Test_Hybrid_Pipeline.epub"
                 else:
-                    st.warning("Không tìm thấy file ePub. Vui lòng kiểm tra Log để xem AI có gặp lỗi không.")
+                    if not st.session_state.settings["api_key"]:
+                        st.error("Vui lòng nhập API Key trong phần Cấu hình!")
+                        st.session_state.is_running = False
+                        st.stop()
 
-            st.success("Hoàn thành!")
+                    st.session_state.logs += "[INFO] Khởi động AI Agent...\n"
+                    agent = PDFAgent(
+                        api_key=st.session_state.settings["api_key"],
+                        base_url=st.session_state.settings["base_url"],
+                        model_name=st.session_state.settings["model_name"]
+                    )
+
+                    instruction = f"""
+                    Hãy xử lý file PDF sau: {temp_pdf_path}.
+                    Tên file gốc: {uploaded_file.name}
+                    1. Đọc metadata và khởi tạo Epub.
+                    2. Đọc và dịch {st.session_state.settings['max_pages']} trang đầu tiên. Phân theo batch {st.session_state.settings['batch_size']} trang/lần.
+                    3. Xử lý semantic parsing cho bảng biểu, trích xuất ảnh thật và nhúng bằng markdown.
+                    4. Đóng gói epub khi hoàn tất.
+                    """
+
+                    f = io.StringIO()
+                    with redirect_stdout(f):
+                        agent.run(initial_instruction=instruction, max_iterations=st.session_state.settings['max_pages']*2)
+                    st.session_state.logs += f.getvalue()
+
+                    # Find the most recently generated epub in the output directory
+                    output_dir = "output"
+                    found_epub = None
+                    if os.path.exists(output_dir):
+                        # Sort directories by modification time to get the latest workspace
+                        dirs = [os.path.join(output_dir, d) for d in os.listdir(output_dir) if os.path.isdir(os.path.join(output_dir, d))]
+                        if dirs:
+                            latest_dir = max(dirs, key=os.path.getmtime)
+                            # Find the epub file inside the latest workspace
+                            epub_files = [f for f in os.listdir(latest_dir) if f.endswith(".epub")]
+                            if epub_files:
+                                found_epub = os.path.join(latest_dir, epub_files[0])
+
+                    if found_epub:
+                        st.session_state.result_epub = found_epub
+                    else:
+                        st.warning("Không tìm thấy file ePub. Vui lòng kiểm tra Log để xem AI có gặp lỗi không.")
+
+                st.success("Hoàn thành!")
         except Exception as e:
             st.error(f"Có lỗi xảy ra: {e}")
         finally:
             st.session_state.is_running = False
+            # Dọn dẹp file PDF tạm
+            if os.path.exists(temp_pdf_path):
+                os.remove(temp_pdf_path)
 
     # Display Logs
     if st.session_state.logs:
