@@ -29,10 +29,10 @@ def main():
     Đây là một cuốn sách lớn, hãy làm theo các bước sau:
     1. Lấy metadata của file PDF.
     2. Khởi tạo Epub với tiêu đề và tác giả lấy từ metadata (hoặc tự đặt tên nếu không có).
-    3. Đọc 2 trang đầu tiên (trang 0 và trang 1) để lấy ví dụ (MVP) và dịch nó. (Bỏ qua nếu trang bìa không có chữ, dịch từ trang có chữ).
+    3. Đọc và dịch 50 trang đầu tiên (trang 0 đến trang 49). Chia nhỏ thành các đợt nhỏ (ví dụ 5-10 trang/lần) để đảm bảo không vượt quá giới hạn ngữ cảnh. Bỏ qua nếu trang bìa không có chữ, dịch từ trang có chữ.
     4. Trình bày lại các bảng biểu (nếu có) bằng Markdown table, thêm caption cho ảnh.
-    5. Lưu chương dịch vào Epub.
-    6. Do đây là bản test MVP, sau khi dịch xong 2 trang đầu, hãy đóng gói Epub ngay (lưu tại output/book.epub) và hoàn thành công việc.
+    5. Lưu các phần đã dịch vào Epub một cách cuốn chiếu.
+    6. Sau khi dịch xong 50 trang đầu, hãy đóng gói Epub (lưu tại output/book.epub) và hoàn thành công việc.
     """
 
     # Ensure output directory exists
