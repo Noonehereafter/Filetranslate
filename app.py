@@ -25,29 +25,64 @@ if "result_epub" not in st.session_state:
 # --- Sidebar: Settings ---
 st.sidebar.title("⚙️ Cấu Hình Hệ Thống")
 
-with st.sidebar.form("settings_form"):
-    api_key = st.text_input("API Key (OpenAI/Gemini)", value=st.session_state.settings["api_key"], type="password")
-    base_url = st.text_input("Base URL", value=st.session_state.settings["base_url"])
-    model_name = st.text_input("Model Name", value=st.session_state.settings["model_name"])
+# We don't use form here so we can have interactive buttons (like fetch models)
+api_key = st.sidebar.text_input("API Key (OpenAI/Gemini)", value=st.session_state.settings["api_key"], type="password")
+base_url = st.sidebar.text_input("Base URL", value=st.session_state.settings["base_url"])
 
-    st.markdown("---")
-    batch_size = st.number_input("Số trang mỗi Batch", min_value=1, max_value=20, value=st.session_state.settings["batch_size"])
-    max_pages = st.number_input("Tổng số trang muốn dịch", min_value=1, max_value=2000, value=st.session_state.settings["max_pages"])
+import requests
 
-    mock_mode = st.checkbox("Chế độ Giả lập (Mock Mode - Không tốn API)", value=st.session_state.settings["mock_mode"])
+if "available_models" not in st.session_state:
+    st.session_state.available_models = []
 
-    submit_settings = st.form_submit_button("Lưu Cấu Hình")
-    if submit_settings:
-        st.session_state.settings = {
-            "api_key": api_key,
-            "base_url": base_url,
-            "model_name": model_name,
-            "batch_size": batch_size,
-            "max_pages": max_pages,
-            "mock_mode": mock_mode
-        }
-        save_settings(st.session_state.settings)
-        st.sidebar.success("Đã lưu cấu hình!")
+col_fetch, col_clear = st.sidebar.columns(2)
+with col_fetch:
+    if st.button("🔄 Lấy Models"):
+        if not api_key:
+            st.error("Thiếu API Key")
+        else:
+            try:
+                headers = {"Authorization": f"Bearer {api_key}"}
+                # Check if base_url has trailing slash and fix it
+                b_url = base_url.rstrip('/')
+                res = requests.get(f"{b_url}/models", headers=headers, timeout=5)
+                if res.status_code == 200:
+                    models_data = res.json()
+                    st.session_state.available_models = [m["id"] for m in models_data.get("data", [])]
+                    st.success("Lấy Model thành công!")
+                else:
+                    st.error(f"Lỗi {res.status_code}: {res.text}")
+            except Exception as e:
+                st.error(f"Không thể kết nối: {e}")
+
+manual_input = st.sidebar.checkbox("Nhập Model thủ công", value=not bool(st.session_state.available_models))
+
+if manual_input or not st.session_state.available_models:
+    model_name = st.sidebar.text_input("Tên Model", value=st.session_state.settings["model_name"])
+else:
+    # Set default index if current model exists in the list
+    default_index = 0
+    if st.session_state.settings["model_name"] in st.session_state.available_models:
+        default_index = st.session_state.available_models.index(st.session_state.settings["model_name"])
+
+    model_name = st.sidebar.selectbox("Chọn Model", options=st.session_state.available_models, index=default_index)
+
+st.sidebar.markdown("---")
+batch_size = st.sidebar.number_input("Số trang mỗi Batch", min_value=1, max_value=20, value=st.session_state.settings["batch_size"])
+max_pages = st.sidebar.number_input("Tổng số trang muốn dịch", min_value=1, max_value=2000, value=st.session_state.settings["max_pages"])
+
+mock_mode = st.sidebar.checkbox("Chế độ Giả lập (Mock Mode - Không tốn API)", value=st.session_state.settings["mock_mode"])
+
+if st.sidebar.button("💾 Lưu Cấu Hình", use_container_width=True):
+    st.session_state.settings = {
+        "api_key": api_key,
+        "base_url": base_url,
+        "model_name": model_name,
+        "batch_size": batch_size,
+        "max_pages": max_pages,
+        "mock_mode": mock_mode
+    }
+    save_settings(st.session_state.settings)
+    st.sidebar.success("Đã lưu cấu hình!")
 
 # --- Main UI ---
 st.title("📚 PDF to EPUB AI Translator")
