@@ -12,6 +12,12 @@ Dựa trên quá trình nghiên cứu và tham khảo các giải pháp hiện t
    3. Yêu cầu AI: *"Hãy đọc phần text thô này, kết hợp nhìn vào tọa độ (x,y) trên bức ảnh đính kèm để cấu trúc lại bảng bị vỡ"*.
 - **Kết quả:** Giảm 90% lượng token Vision, tăng 99% độ chính xác cho Bảng/Toán học (Latex) so với việc chỉ ném ảnh cho LLM tự đoán.
 
+### 1.1 Giải pháp Thay thế cho Máy tính Cấu hình Yếu (No GPU / Low RAM)
+Trường hợp chạy `marker` bằng PyTorch ở local quá nặng cho thiết bị cá nhân, ROADMAP đề xuất 3 hướng tiếp cận thay thế (Cloud-dependent):
+1. **Sử dụng Datalab Hosted API / LlamaParse API:** Thay vì chạy Local, gửi PDF lên Cloud Parser API để lấy lại cấu trúc JSON. Tốn thêm phí API Parser nhưng giảm tải hoàn toàn cho máy cá nhân.
+2. **Gửi File PDF trực tiếp (Native PDF Upload):** Thay vì code python phải tự cắt trang thành ảnh và encode Base64, chúng ta có thể sử dụng tính năng **File API của Gemini 1.5** hoặc OpenAI. Upload thẳng file PDF nguyên bản. LLM sẽ tự động đọc cả text chìm và nhìn cả ảnh nhờ kiến trúc Native Multimodal. Cách này rẻ và cực nhẹ cho máy tính cá nhân.
+3. **Lightweight Heuristic Parsing:** Dùng hàm `get_text()` của chính `PyMuPDF` (thư viện cực nhẹ đang dùng) để lấy text chay. Agent sẽ tự đánh giá: nếu text đọc ra toàn ký tự lạ (lỗi font) hoặc thiếu dữ liệu, Agent mới quyết định gọi Tool cắt ảnh để dùng Vision.
+
 ## 2. Quản lý Chi phí và Tốc độ (Cost Tracking & Concurrency)
 **Vấn đề hiện tại:** Xử lý tuần tự và không có giới hạn chi phí có thể dẫn đến việc tiêu tốn rất nhiều API Credit.
 **Giải pháp tham khảo:**
