@@ -12,12 +12,12 @@ Dựa trên quá trình nghiên cứu và tham khảo các giải pháp hiện t
    3. Yêu cầu AI: *"Hãy đọc phần text thô này, kết hợp nhìn vào tọa độ (x,y) trên bức ảnh đính kèm để cấu trúc lại bảng bị vỡ"*.
 - **Kết quả:** Giảm 90% lượng token Vision, tăng 99% độ chính xác cho Bảng/Toán học (Latex) so với việc chỉ ném ảnh cho LLM tự đoán.
 
-### 1.1 Giải pháp Thay thế cho Máy tính Cấu hình Yếu: Distributed Architecture với Google Colab & MCP
-Thay vì tải toàn bộ file PDF lên LLM (dẫn đến tỷ lệ ảo giác/hallucination cao, khó kiểm soát chất lượng ở các trang phức tạp), giải pháp tối ưu và tiết kiệm nhất là chia tách hệ thống thông qua giao thức **MCP (Model Context Protocol)** kết hợp với **Google Colab Free GPU**:
+### 1.1 Giải pháp Thay thế cho Máy tính Cấu hình Yếu: Distributed Architecture với `googlecolab/colab-mcp`
+Thay vì tải toàn bộ file PDF lên LLM (dẫn đến tỷ lệ ảo giác/hallucination cao, khó kiểm soát chất lượng ở các trang phức tạp), giải pháp tối ưu và tiết kiệm nhất là chia tách hệ thống thông qua giao thức **MCP (Model Context Protocol)** kết hợp với **Google Colab Free GPU**, sử dụng công cụ chính thức từ Google `googlecolab/colab-mcp`:
 
-- **MCP Server (Chạy trên Google Colab):** Cài đặt môi trường nặng (PyTorch, `marker-pdf` V2) trên Colab để tận dụng GPU T4 miễn phí. Expose các hàm (tools) như `extract_page_json`, `get_bounding_boxes`, `render_math` thông qua chuẩn MCP và đường hầm (Ngrok/Cloudflare tunnel).
-- **MCP Client (Chạy trên máy tính Local cá nhân):** UI Streamlit và Agent sẽ chạy cực nhẹ trên máy cá nhân. AI Agent sẽ đóng vai trò nhạc trưởng: *"Tôi cần đọc trang 15, hãy gọi MCP Server trên Colab bóc text và bounding box cho tôi"*.
-- **LLM Context Control:** Nhờ MCP, Agent lấy được context chính xác (tọa độ, text đã được OCR bằng model chuyên dụng của Colab) và chỉ gửi cho Cloud LLM những cụm dữ liệu nhỏ, đã được phân tách rõ ràng. Khắc phục triệt để lỗi ảo giác và vỡ layout, đồng thời giải phóng hoàn toàn gánh nặng phần cứng cho máy cá nhân mà chi phí phần cứng = 0.
+- **Cơ chế Bán tự động (Semi-Automated WebSocket):** Bạn chỉ cần cài đặt `colab-mcp` làm công cụ cho AI Agent tại máy cá nhân. Khi Agent cần bóc tách file PDF nặng bằng AI Models chuyên dụng (như PyTorch, `marker-pdf` V2), Agent sẽ tự động bật trình duyệt web, mở một tab Google Colab.
+- **Thực thi qua GPU Đám mây:** Tab Colab này kết nối ngược về Agent qua WebSocket. Agent tự động "bơm" script Python bóc tách PDF lên Colab, chạy trên con GPU T4 miễn phí của Google, và thu hồi kết quả (Text thô, Bounding box, Images) về lại máy tính của bạn.
+- **LLM Context Control Tuyệt đối:** Nhờ MCP, Cloud LLM (Gemini/GPT-4o) không phải đọc mù PDF. Agent chỉ gửi cho LLM những đoạn context đã được Colab parse sạch sẽ và có tọa độ chính xác. Khắc phục triệt để lỗi ảo giác, vỡ layout, giải phóng 100% gánh nặng phần cứng máy local, mà chi phí hạ tầng = $0.
 
 ## 2. Quản lý Chi phí và Tốc độ (Cost Tracking & Concurrency)
 **Vấn đề hiện tại:** Xử lý tuần tự và không có giới hạn chi phí có thể dẫn đến việc tiêu tốn rất nhiều API Credit.
