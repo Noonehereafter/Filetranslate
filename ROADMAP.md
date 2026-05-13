@@ -25,20 +25,27 @@ Thay vì tải toàn bộ file PDF lên LLM (dẫn đến tỷ lệ ảo giác/h
 - Giống `jkecb/pdf-to-epub-ai`: Cung cấp tham số `--max-cost`, tự động tracking Tokens usage (Input/Output). Nếu dự kiến vượt mức cho phép, tool sẽ pause và hỏi ý kiến người dùng.
 - **Xử lý Đa luồng (Async/Concurrency):** PDF có thể được chia thành nhiều đoạn độc lập (chunks). Các API calls (ví dụ: gpt-4o) có thể được gọi đồng thời qua `asyncio`, giúp giảm thời gian dịch 1 quyển sách từ hàng giờ xuống vài chục phút.
 
-## 3. Kiến trúc Microservice (API / Web UI)
+## 3. Cải tiến Trải nghiệm & Dịch thuật (Inspired by Immersive Translate)
+**Vấn đề hiện tại:** Dịch thuần túy (monolingual) và chưa có tính nhất quán về thuật ngữ chuyên môn xuyên suốt các chương sách.
+**Giải pháp nâng cao:**
+- **Chế độ Dịch Song Ngữ (Bilingual EPUB):** Cung cấp tùy chọn sinh ra EPUB hiển thị song song đoạn văn bản gốc và bản dịch (ví dụ: đệm câu tiếng Việt ngay dưới câu tiếng Anh bằng format in nghiêng). Giúp người dùng vừa đọc sách vừa học ngoại ngữ.
+- **Từ điển Thuật ngữ (Custom Glossary):** Thêm trường nhập liệu trên UI để cung cấp danh sách thuật ngữ (VD: `Equity = Cổ phần`). AI Agent sẽ được tiêm danh sách này vào System Prompt để ép buộc sự nhất quán khi dịch sách chuyên ngành (Tài chính, Y khoa...).
+- **Bộ nhớ Dịch thuật (Translation Memory / Cache):** Tích hợp SQLite/LocalDB để lưu lại các đoạn đã dịch. Hỗ trợ Resume (dịch tiếp) nếu bị lỗi mạng/API, tránh việc phải trả tiền API để dịch lại từ đầu.
+
+## 4. Kiến trúc Microservice (API / Web UI)
 **Vấn đề hiện tại:** Chỉ chạy qua CLI, người dùng non-tech khó tiếp cận.
 **Giải pháp tham khảo:**
 - Giống `eulixir/pdf2epub`: Đưa toàn bộ Logic Agent hiện tại thành các Background Worker (vd: Celery / Redis).
 - Expose REST API bằng `FastAPI`.
 - Cho phép người dùng Upload file PDF qua giao diện Web (Streamlit hoặc React), theo dõi thanh tiến trình (progress bar), xem chi phí dự kiến, và bấm nút tải ePub về khi hoàn thành.
 
-## 4. Xử lý Cấu trúc Sách thông minh (Smart Chaptering)
+## 5. Xử lý Cấu trúc Sách thông minh (Smart Chaptering)
 **Vấn đề hiện tại:** AI phải tự chia batch cố định (ví dụ 5 trang/lần) dẫn đến việc một chương hoặc một câu bị cắt ngang giữa hai batch.
 **Giải pháp tham khảo:**
 - Sử dụng mô hình Heuristic hoặc Text Classification để nhận diện đâu là tiêu đề chương (Chapter Heading), Mục lục (Table of Contents).
 - Chia file PDF theo Logic (ví dụ: Batch = Từ đầu chương 1 đến hết chương 1), giúp AI dịch mượt mà hơn và không mất ngữ cảnh câu văn.
 
-## 5. Xử lý Ảnh và Trình bày (Images & Fixed-Layout)
+## 6. Xử lý Ảnh và Trình bày (Images & Fixed-Layout)
 **Vấn đề hiện tại:** Hình ảnh được "dịch" thành đoạn văn miêu tả (Caption). Không có ảnh gốc trong Epub.
 **Giải pháp nâng cao:**
 - Sử dụng tool `extract_page_assets` (đã viết sẵn) để bóc tách ảnh gốc, nén lại và chèn `<img src>` trực tiếp vào ePub.
