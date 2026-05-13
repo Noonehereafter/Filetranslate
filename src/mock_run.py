@@ -16,7 +16,10 @@ def run_mock_agent():
 
     # BƯỚC 2: Khởi tạo ePub
     print("[MOCK AI] Đang gọi init_epub...")
-    init_epub("Compensation (Bản Test Bảng Biểu & Hình Ảnh)", "Barry Gerhart & AI")
+    init_res = json.loads(init_epub("Compensation Test Hybrid Pipeline", "Barry Gerhart & AI"))
+    workspace_dir = init_res.get("workspace")
+    images_dir = init_res.get("images_dir")
+    print(f"Khởi tạo workspace tại: {workspace_dir}")
 
     # BƯỚC 3: Giả lập quá trình đọc trang 75 và 76 (có chứa ảnh và bảng)
     start_page = 75
@@ -33,19 +36,28 @@ def run_mock_agent():
     images_count = len(img_res.get('pages', []))
     print(f"[MOCK AI] Đã nhận được {images_count} hình ảnh để đọc bằng Vision AI.")
 
-    # 3b. Giả lập AI nhận diện và dịch:
-    print(f"[MOCK AI] Đang phân tích Vision và tạo nội dung Markdown...")
+    # 3b. Gọi extract_page_assets để bóc tách ảnh gốc (giả định có ảnh ở trang 75)
+    from src.tools.pdf_tools import extract_page_assets
+    print(f"[MOCK AI] Đang gọi extract_page_assets tại trang {start_page}...")
+    assets_res = json.loads(extract_page_assets(pdf_path, start_page, images_dir))
+    extracted_images = assets_res.get("extracted_images", [])
+
+    # Mô phỏng AI quyết định lấy ảnh đầu tiên
+    img_markdown = f"![Sơ đồ Lương thưởng]({extracted_images[0]})" if extracted_images else "*(Không tìm thấy ảnh gốc)*"
+
+    # 3c. Giả lập AI nhận diện và dịch (có chèn ảnh vật lý):
+    print(f"[MOCK AI] Đang phân tích Vision và tạo nội dung Markdown (Hybrid Pipeline)...")
     mock_translated_markdown = f"""## Chương 2: Chiến lược lương thưởng (Trang {start_page}-{end_page})
 
-Dưới đây là một ví dụ giả định về cách AI Vision đọc và tái tạo lại một trang sách có chứa hình ảnh và bảng biểu phức tạp. Thay vì cố gắng chụp lại mờ nhòe, AI trình bày lại bằng Markdown chuẩn.
+Dưới đây là ví dụ về cách AI Semantic Engine phân tích bảng biểu phức tạp và chèn hình ảnh vật lý vào file.
 
 ### Hình ảnh minh họa
 
-*(Ảnh: Biểu đồ thể hiện mối tương quan giữa sự hài lòng của nhân viên và mức lương cơ bản trong ngành IT năm 2023. Đường xu hướng đi lên rõ rệt khi vượt qua mức 20.000 USD/năm)*
+{img_markdown}
 
-> **Nhận xét của AI:** Tôi không thể chèn trực tiếp ảnh bitmap ở đây trong phiên bản MVP, nhưng tôi đã tạo một đoạn mô tả chi tiết (caption) bên trên cho người đọc nắm được ngữ cảnh.
+> **Nhận xét của AI:** Tôi đã sử dụng tool `extract_page_assets` để lưu ảnh gốc và chèn nó vào Markdown thành công. Thay vì đọc mờ nhòe hay chỉ dùng caption chay, giờ đây ảnh gốc đã nằm trong `.epub`.
 
-### Bảng biểu: Cơ cấu thu nhập theo cấp bậc
+### Bảng biểu: Cơ cấu thu nhập theo cấp bậc (Xử lý Semantic Parsing)
 
 Trong trang {start_page}, tác giả có đề cập đến một bảng dữ liệu chi tiết. AI đã nhận diện và chuyển đổi nó thành bảng Markdown sau:
 
@@ -59,15 +71,14 @@ Trong trang {start_page}, tác giả có đề cập đến một bảng dữ li
 Như chúng ta thấy ở bảng trên, khi nhân viên thăng tiến, tỷ trọng của các khoản thưởng hiệu suất và phúc lợi phi tiền mặt tăng lên đáng kể so với lương cơ bản. Điều này phản ánh chiến lược trả lương chú trọng vào... (tiếp tục nội dung dịch văn bản).
 """
 
-    # 3c. Lưu vào ePub
+    # 3d. Lưu vào File Markdown (thông qua append_chapter_to_epub)
     print(f"[MOCK AI] Đang gọi append_chapter_to_epub...")
     append_res = json.loads(append_chapter_to_epub(f"Phân tích trang {start_page}-{end_page}", mock_translated_markdown))
-    print(f"Kết quả lưu chương: {append_res}")
+    print(f"Kết quả ghi Markdown: {append_res}")
 
-    # BƯỚC 4: Hoàn thành và đóng gói
+    # BƯỚC 4: Hoàn thành và đóng gói thành Epub
     print("\n[MOCK AI] Đã xử lý xong. Đang gọi finish_epub_build...")
-    os.makedirs("output", exist_ok=True)
-    finish_res = finish_epub_build("output/test_table_image.epub")
+    finish_res = finish_epub_build()
     print(f"Kết quả đóng gói: {finish_res}")
     print("--- [MOCK AI] Kết thúc ---")
 

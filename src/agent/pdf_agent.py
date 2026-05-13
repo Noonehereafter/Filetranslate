@@ -12,19 +12,20 @@ class PDFAgent:
         )
         self.model_name = model_name
         self.system_prompt = """
-Bạn là một AI Agent chuyên nghiệp có nhiệm vụ dịch một cuốn sách PDF sang tiếng Việt và đóng gói thành định dạng ePub.
-Bạn đóng vai trò là "Bộ não" quản lý toàn bộ luồng công việc. Các "Culi" (công cụ/functions) đã được chuẩn bị sẵn cho bạn.
+Bạn là một AI Agent chuyên nghiệp có nhiệm vụ phân tích ngữ nghĩa, dịch một cuốn sách PDF sang tiếng Việt và tái tạo định dạng hoàn chỉnh.
+Bạn đóng vai trò là "Bộ não" xử lý ngữ nghĩa sâu (Semantic Parsing) được cấp quyền gọi các công cụ (tools) vật lý.
 
-Mục tiêu của bạn:
-1. Đọc và hiểu metadata của PDF. Khởi tạo file Epub với thông tin tương ứng.
-2. Đọc từng phần (batch) của PDF thông qua hình ảnh (dùng `get_page_images`).
-3. Dịch nội dung các trang bạn vừa đọc sang tiếng Việt một cách tự nhiên, chuẩn văn phong xuất bản.
-4. Xử lý các khó khăn của PDF scan:
-   - Với các bảng biểu: Bạn cần tái tạo lại thành định dạng Markdown tables trong bản dịch.
-   - Với sơ đồ/hình ảnh quan trọng: Giữ lại thông tin hoặc tóm tắt ý nghĩa bằng Caption (chú thích). (Bạn cũng có thể gọi `extract_page_assets` nếu cần trích xuất ảnh gốc, nhưng trong phiên bản MVP này, tập trung dịch text và dùng Markdown table/caption).
-   - Loại bỏ các header/footer thừa thãi (số trang, tiêu đề lặp lại) để mạch văn ePub liền mạch.
-5. Khi bạn tích lũy đủ 1 chương (hoặc một phần lớn có nghĩa), hãy sử dụng `append_chapter_to_epub` để lưu nội dung dịch (định dạng Markdown) vào file ePub.
-6. Khi hoàn thành toàn bộ cuốn sách, gọi `finish_epub_build` để xuất file.
+Mục tiêu và Chiến lược của bạn (Hybrid Pipeline):
+1. Đọc và hiểu metadata của PDF. Khởi tạo file Epub (bằng `init_epub`). Hệ thống sẽ tự động tạo cấu trúc: output/[Tên Sách]/ gồm file .md và folder /images.
+2. Đọc nội dung PDF bằng `get_page_images`.
+3. **Xử lý Bảng biểu Phức tạp (Sức mạnh cốt lõi của LLM):** Khi gặp bảng biểu (đặc biệt là bảng có merged cells, nested headers mà OCR vật lý thường làm hỏng), bạn PHẢI phân tích ngữ cảnh để hiểu cột/hàng nào liên quan đến nhau, và tái tạo lại bằng Markdown Table chuẩn xác nhất.
+4. **Xử lý Hình ảnh & Sơ đồ:**
+   - Gọi tool `extract_page_assets` để lưu ảnh nhúng trong file PDF.
+   - Tool sẽ trả về đường dẫn vật lý (ví dụ: `images/page_75_img_0.jpg`).
+   - Bạn hãy chèn ảnh này vào bản dịch bằng cú pháp Markdown: `![Mô tả ảnh](images/page_75_img_0.jpg)`.
+   - Kết hợp dịch thêm phần chữ có trong sơ đồ vào ngay bên dưới ảnh để người đọc dễ hiểu.
+5. Khi xử lý xong mỗi khối nội dung, gọi `append_chapter_to_epub` để lưu bản dịch (Markdown) vào file tổng.
+6. Gọi `finish_epub_build` khi kết thúc. Hệ thống sẽ tự động đóng gói file Markdown và ảnh thành ePub.
 
 LƯU Ý QUAN TRỌNG:
 - Bạn phải sử dụng các công cụ (tools) được cung cấp.
@@ -168,6 +169,9 @@ LƯU Ý QUAN TRỌNG:
             tool_calls = response_message.tool_calls
             if tool_calls:
 
+                # Collect vision messages to append AFTER all tool responses
+                pending_vision_messages = []
+
                 for tool_call in tool_calls:
                     function_name = tool_call.function.name
                     function_args = json.loads(tool_call.function.arguments)
@@ -194,21 +198,17 @@ LƯU Ý QUAN TRỌNG:
                                                 "url": f"data:image/jpeg;base64,{p['image_base64']}"
                                             }
                                         })
-                                    # Add tool response as normal text so the API doesn't complain about tool_call_id
-                                    # BUT actually for OpenAI tool calling, we must reply as "tool" role.
-                                    # Since Vision API + Tool Calling can be tricky, we format it as a tool response
-                                    # but we MIGHT need to ensure the model supports vision in tool responses.
+
+                                    # Standard tool response
                                     messages.append({
                                         "role": "tool",
                                         "tool_call_id": tool_call.id,
                                         "name": function_name,
-                                        # "content": content_list # If API allows it
-                                        # Temporary string hack for broad compatibility:
-                                        "content": json.dumps({"status": "success", "message": f"Returned {len(res_dict['pages'])} images. Please analyze them."})
+                                        "content": json.dumps({"status": "success", "message": f"Returned {len(res_dict['pages'])} images. Please analyze them in the next message."})
                                     })
 
-                                    # Provide the actual images in the next user message to ensure vision works
-                                    messages.append({
+                                    # Queue the actual vision payload to be added after ALL tools
+                                    pending_vision_messages.append({
                                         "role": "user",
                                         "content": content_list
                                     })
@@ -219,7 +219,6 @@ LƯU Ý QUAN TRỌNG:
                                         "name": function_name,
                                         "content": function_response
                                     })
-
                             else:
                                 messages.append({
                                     "role": "tool",
@@ -242,6 +241,10 @@ LƯU Ý QUAN TRỌNG:
                             "name": function_name,
                             "content": json.dumps({"error": "Function not found"})
                         })
+
+                # Append pending vision messages sequentially after ALL tool calls to avoid API errors
+                for vm in pending_vision_messages:
+                    messages.append(vm)
             else:
                 # If no tool calls and AI thinks it's done or waiting
                 if "hoàn thành" in (response_message.content or "").lower() or "finish" in (response_message.content or "").lower():

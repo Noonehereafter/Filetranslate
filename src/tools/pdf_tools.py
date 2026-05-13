@@ -61,8 +61,8 @@ def get_page_images(pdf_path: str, start_page: int, end_page: int) -> str:
 def extract_page_assets(pdf_path: str, page_number: int, output_dir: str) -> str:
     """
     Extract original image assets from a specific PDF page.
-    Saves them to output_dir and returns their local paths.
-    This is useful if AI decides an image needs to be included in the epub.
+    Saves them to output_dir and returns their local paths relative to workspace (e.g., 'images/file.jpg').
+    This is useful for the AI to embed images using standard markdown: ![caption](images/file.jpg)
     """
     try:
         doc = fitz.open(pdf_path)
@@ -79,6 +79,7 @@ def extract_page_assets(pdf_path: str, page_number: int, output_dir: str) -> str
             base_image = doc.extract_image(xref)
             image_bytes = base_image["image"]
             image_ext = base_image["ext"]
+            if image_ext == "jpeg": image_ext = "jpg"
 
             filename = f"page_{page_number}_img_{img_index}.{image_ext}"
             filepath = os.path.join(output_dir, filename)
@@ -86,7 +87,8 @@ def extract_page_assets(pdf_path: str, page_number: int, output_dir: str) -> str
             with open(filepath, "wb") as f:
                 f.write(image_bytes)
 
-            extracted_files.append(filepath)
+            # Return relative path for Markdown embedding
+            extracted_files.append(f"images/{filename}")
 
         doc.close()
         return json.dumps({"extracted_images": extracted_files})
